@@ -11,7 +11,9 @@ import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { Span, Baggage } from '@opentelemetry/api';
 import { AlwaysOnSampler, AlwaysOffSampler, ParentBasedSampler, TraceIdRatioBasedSampler } from '@opentelemetry/core';
 import { IORedisInstrumentation } from '@opentelemetry/instrumentation-ioredis'
-import { serviceSyncDetector } from 'opentelemetry-resource-detector-service';
+//26/12/2023 Se modifica la línea siguiente por la siguiente:
+//import { serviceSyncDetector, serviceSyncDetector } from 'opentelemetry-resource-detector-service';  //
+import { serviceSyncDetector } from 'opentelemetry-resource-detector-service';  //
 import { CollectorTraceExporter, CollectorMetricExporter, } from '@opentelemetry/exporter-collector';
 import WsInstrumentation from './ws-instrumentation/ws';
 
@@ -19,39 +21,53 @@ import WsInstrumentation from './ws-instrumentation/ws';
 const init = function (serviceName: string, metricPort: number) {
 
     // Define metrics
-    // const metricExporter = new PrometheusExporter({ port: metricPort }, () => {
-    //     console.log(`scrape: http://localhost:${metricPort}${PrometheusExporter.DEFAULT_OPTIONS.endpoint}`);
-    // });
-    const metricExporter = new CollectorMetricExporter({
-        url: 'http://localhost:4318/v1/metrics'
-    })
+//deecomento hoy 20/12 las siguientes tres líneas:
+    const metricExporter = new PrometheusExporter({ port: metricPort }, () => {
+        console.log(`scrape: http://localhost:${metricPort}${PrometheusExporter.DEFAULT_OPTIONS.endpoint}`);
+    });
+//Comento hoy 20/12 las siguientes tres líneas:
+//    const metricExporter = new CollectorMetricExporter({
+//        url: 'http://localhost:4318/v1/metrics'
+//    })
     const meter = new MeterProvider({ exporter: metricExporter, interval: 100000 }).getMeter(serviceName);
 
     // Define traces
-    const traceExporter = new JaegerExporter({ endpoint: 'http://localhost:14268/api/traces'});
+    const traceExporter = new JaegerExporter({ endpoint: 'http://localhost:14268/api/traces'}); //Este es el exporter, en este caso para Jaeger
+
+// Las dos líneas siguientes me permiten utilizar un detector:
+//    const serviceResources = serviceSyncDetector.detect(); //Un detetor es una clase predeterminada que colecta datos.
+//    const customResources = new Resource({'my-resource':55});
+
     const provider = new NodeTracerProvider({
+// Si uso "detector" debo descomentar la línea siguiente:
+//        resource: serviceResources.merge(customResources)
+// Si uso "detector" debo comentar las siguientes tres líneas: 
         resource: new Resource({
-            [SemanticResourceAttributes.SERVICE_NAME]: serviceName
-        }),
-        sampler:new ParentBasedSampler({
-            root: new TraceIdRatioBasedSampler(1)
+            [SemanticResourceAttributes.SERVICE_NAME]: serviceName,'metadata':54, 'metadata2':63  //Acá podría agregar metedata.
         })
+//Comento hoy 20/12 las siguientes tres líneas: 
+//        sampler:new ParentBasedSampler({          
+ //           root: new TraceIdRatioBasedSampler(1)
+//        })
     });
     // const traceExporter = new CollectorTraceExporter({
     //     url: 'http://localhost:4318/v1/trace'
     // })
-    provider.addSpanProcessor(new SimpleSpanProcessor(traceExporter));
+    provider.addSpanProcessor(new SimpleSpanProcessor(traceExporter));  //toma el span y se lo pasa al exporter de Jaeger.
+//    provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));  //Si habilito Esta línea me imprime en consola en forma simultanea.
     provider.register();
+//La función "requestHook" me permitiriá enviar información del span activo en el header.
     registerInstrumentations({
         instrumentations: [
             new ExpressInstrumentation({
-                requestHook: (span, reqInfo) => {
+                requestHook: (span, reqInfo) => {  
                     span.setAttribute('request-headers',JSON.stringify(reqInfo.req.headers))
                 }
             }),
             new HttpInstrumentation(),
-            new IORedisInstrumentation(),
-             new WsInstrumentation()
+//Comento hoy 20/12 las siguientes dos líneas: 
+            new IORedisInstrumentation()
+//            new WsInstrumentation()
         ]
     });
     const tracer = provider.getTracer(serviceName);

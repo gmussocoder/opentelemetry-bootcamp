@@ -12,4 +12,4 @@ scrape_configs:
     honor_labels: true
 
     static_configs:
-      - targets: ['collector-gateway:8889']
+      - targets: ['collector-gateway:8889','10.9.89.153:8081','10.9.89.153:8091']
